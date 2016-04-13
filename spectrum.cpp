@@ -44,13 +44,14 @@ void SpectrumAnalyzer::init()
 {
     filesrc = FileSrc::create();
     decoder = ElementFactory::create_element("decodebin");
+    audiosink = ElementFactory::create_element("autoaudiosink");
 
-    if (!filesrc || !decoder)
+    if (!filesrc || !decoder || !audiosink)
     {
         throw std::runtime_error("One element couldn't be created.");
     }
 
-    pipeline->add(filesrc)->add(decoder);
+    pipeline->add(filesrc)->add(decoder)->add(audiosink);
     decoder->signal_pad_added().connect(sigc::mem_fun(*this, &SpectrumAnalyzer::on_decoder_pad_added));
 
     filesrc->link(decoder);
@@ -77,31 +78,14 @@ bool SpectrumAnalyzer::on_bus_message(const RefPtr<Bus> &, const RefPtr<Message>
 
 void SpectrumAnalyzer::on_decoder_pad_added(const RefPtr<Pad>& pad)
 {
-    RefPtr<Bin> parent = parent.cast_dynamic(pad->get_parent()->get_parent());
-
-    if (!parent)
-    {
-        std::cerr << "Cannot get parent bin" << std::endl;
-        return;
-    }
-
-    RefPtr<Element> sink = ElementFactory::create_element("autoaudiosink");
-
-    if (!sink)
-    {
-        std::cerr << "Cannot create element autoaudiosink" << std::endl;
-        return;
-    }
-
     try
     {
-        parent->add(sink);
-        sink->set_state(STATE_PLAYING);
-        pad->link(sink->get_static_pad("sink"));
+        audiosink->set_state(STATE_PLAYING);
+        pad->link(audiosink->get_static_pad("sink"));
     }
     catch (const std::runtime_error& err)
     {
-        std::cerr << "Cannot add element to bin: " << err.what() << std::endl;
+        std::cerr << "Cannot link to decoder. Error: " << err.what() << std::endl;
     }
 }
 
