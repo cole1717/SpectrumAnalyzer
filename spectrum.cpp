@@ -1,12 +1,18 @@
 
 //COMPILE WITH: g++ spectrum.cpp -o spectrum -std=c++11 -L/home/pi/git/rpi-rgb-led-matrix-master/lib -lrgbmatrix -lrt -lm -lpthread `pkg-config --cflags --libs gstreamermm-1.0`
+//sudo chown root spectrum
+//sudo chmod u+s spectrum
+
 //LED: g++ in/out FILES -L/home/pi/git/rpi-rgb-led-matrix-master/lib -lrgbmatrix -lrt -lm -lpthread -std=c++11
+
+#define _POSIX_C_SOURCE 200112L
 
 #include </home/pi/git/rpi-rgb-led-matrix-master/include/led-matrix.h>
 #include <gstreamermm.h>
 #include <iostream>
 #include <glibmm.h>
 #include <iomanip>
+#include <unistd.h>
 
 //NEED THESE?
 #include <stdio.h>
@@ -31,6 +37,7 @@ private:
     bool on_bus_message(const RefPtr<Bus>&, const RefPtr<Message>& message);
     void on_decoder_pad_added(const RefPtr<Pad>& pad);
     void decode_spectrum(const RefPtr<Message> &message);
+    void drawMag(float height, int x);
     void drawStraightLine(Canvas *canvas, int x1, int y1, int x2, int y2, int R, int G, int B);
     RefPtr<Glib::MainLoop> main_loop;
     RefPtr<Pipeline> pipeline;
@@ -38,6 +45,8 @@ private:
     RefPtr<Element> decoder, audiosink, spectrum;
     Canvas *canvas;
     int bands;
+    float factor;
+    int threshold;
 };
 
 SpectrumAnalyzer::SpectrumAnalyzer()
@@ -58,10 +67,13 @@ void SpectrumAnalyzer::play(const std::string &fileName)
 
 void SpectrumAnalyzer::init()
 {
-    bands = 11;
+    bands = 36;
+    threshold = -80;
+    factor = abs(threshold / 32);
+
     filesrc = FileSrc::create();
     decoder = ElementFactory::create_element("decodebin");
-    audiosink = ElementFactory::create_element("autoaudiosink");
+    audiosink = ElementFactory::create_element("pulsesink");
     spectrum = ElementFactory::create_element("spectrum");
 
     if (!filesrc || !decoder || !audiosink || !spectrum)
@@ -71,8 +83,12 @@ void SpectrumAnalyzer::init()
 
     spectrum->property("post-messages",true);
     spectrum->property("bands", bands);
-    spectrum->property("threshold", -80);
-    spectrum->property("interval", 1000000000);
+    spectrum->property("threshold", threshold);
+    spectrum->property("interval", 50000000);
+
+    //Glib::ustring name = "snd_usb_audio";
+
+    //audiosink->property("device", name);
 
     pipeline->add(filesrc)->add(decoder)->add(audiosink)->add(spectrum);
     decoder->signal_pad_added().connect(sigc::mem_fun(*this, &SpectrumAnalyzer::on_decoder_pad_added));
@@ -119,15 +135,43 @@ void SpectrumAnalyzer::on_decoder_pad_added(const RefPtr<Pad>& pad)
 void SpectrumAnalyzer::decode_spectrum(const RefPtr<Message> &message)
 {
     Gst::Structure s = message->get_structure();
+    float height;
+    float magnitude;
+    float fakeFactor;
     Gst::ValueList mags;
     s.get_field("magnitude", mags);
 
-    for (int i = 0; i < bands; i++)
+    canvas->Clear();
+
+    for (int i = bands - 4; i > 0; i--)
     {
         Glib::Value<float> mag;
-        mags.get(i, mag);
+        mags.get(i - 1, mag);
+        magnitude = floor (abs(threshold) + mag.get());
+
+        if (magnitude < 20) fakeFactor = factor * 0.7;
+        else if (magnitude >= 15 && magnitude < 35) fakeFactor = factor; //SHOULD DO A RATIO NOT SUBTRACTION
+        else fakeFactor = factor * 1.2;
+
+        height = floor(magnitude / fakeFactor);
+        drawMag(height, 32 - i);//(3 * i) - 3);
+        drawMag(height, 32 - i);//(3 * i) - 2);
     }
-    std::cout << s.to_string() << std::endl << std::endl << std::endl;
+    //std::cout << s.to_string() << std::endl << std::endl << std::endl;
+}
+
+void SpectrumAnalyzer::drawMag(float height, int x)
+{
+    int h = int(height);
+    for (int i = 0; i < h; i++)
+    {
+        if (i < 9)
+            canvas->SetPixel(x, i, 0, 200, 0);
+        else if (i >= 9 && i < 16)
+            canvas->SetPixel(x, i, 255, 225, 0);
+        else
+            canvas->SetPixel(x, i, 255, 0, 0);
+    }
 }
 
 void SpectrumAnalyzer::addCanvas(Canvas *can)
@@ -191,6 +235,7 @@ void SpectrumAnalyzer::setBepis(Canvas *canvas) {
     drawStraightLine(canvas,29,13,29,18,255,0,0);
 }
 
+
 int main(int argc, char** argv)
 {
     if (argc < 2)
@@ -199,6 +244,8 @@ int main(int argc, char** argv)
       return 1;
     }
 
+    uid_t real = getuid();
+
     GPIO io;
     if (!io.Init())
       return 1;
@@ -206,11 +253,14 @@ int main(int argc, char** argv)
     int rows = 32;
     int chain = 1;
     int parallel = 1;
-    Canvas *canvas = new RGBMatrix(&io, rows, chain, parallel);
+    RGBMatrix *canvas = new RGBMatrix(&io, rows, chain, parallel);
+    canvas->SetBrightness(60);
+
+    seteuid(real);
 
     init(argc, argv);
     SpectrumAnalyzer player;
-    //player.addCanvas(canvas);
+    player.addCanvas(canvas);
     //player.setBepis(canvas);
 
     try
