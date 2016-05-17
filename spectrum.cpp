@@ -47,6 +47,7 @@ private:
     int bands;
     float factor;
     int threshold;
+    int offset;
 };
 
 SpectrumAnalyzer::SpectrumAnalyzer()
@@ -67,9 +68,11 @@ void SpectrumAnalyzer::play(const std::string &fileName)
 
 void SpectrumAnalyzer::init()
 {
-    bands = 36;
+    bands = 100;
     threshold = -80;
+    offset = bands - 32;
     factor = abs(threshold / 32);
+
 
     filesrc = FileSrc::create();
     decoder = ElementFactory::create_element("decodebin");
@@ -143,21 +146,20 @@ void SpectrumAnalyzer::decode_spectrum(const RefPtr<Message> &message)
 
     canvas->Clear();
 
-    for (int i = bands - 4; i > 0; i--)
+    for (int i = bands; i > offset; i--)
     {
         Glib::Value<float> mag;
-        mags.get(i - 1, mag);
+        mags.get(i - offset - 1, mag);
         magnitude = floor (abs(threshold) + mag.get());
 
         if (magnitude < 20) fakeFactor = factor * 0.7;
-        else if (magnitude >= 15 && magnitude < 35) fakeFactor = factor; //SHOULD DO A RATIO NOT SUBTRACTION
+        else if (magnitude >= 15 && magnitude < 35) fakeFactor = factor;
         else fakeFactor = factor * 1.2;
 
         height = floor(magnitude / fakeFactor);
-        drawMag(height, 32 - i);//(3 * i) - 3);
-        drawMag(height, 32 - i);//(3 * i) - 2);
+        drawMag(height, 32 + offset - i);
+        drawMag(height, 32 + offset - i);
     }
-    //std::cout << s.to_string() << std::endl << std::endl << std::endl;
 }
 
 void SpectrumAnalyzer::drawMag(float height, int x)
@@ -165,9 +167,9 @@ void SpectrumAnalyzer::drawMag(float height, int x)
     int h = int(height);
     for (int i = 0; i < h; i++)
     {
-        if (i < 9)
+        if (i < 10)
             canvas->SetPixel(x, i, 0, 200, 0);
-        else if (i >= 9 && i < 16)
+        else if (i >= 10 && i < 20)
             canvas->SetPixel(x, i, 255, 225, 0);
         else
             canvas->SetPixel(x, i, 255, 0, 0);
@@ -261,7 +263,6 @@ int main(int argc, char** argv)
     init(argc, argv);
     SpectrumAnalyzer player;
     player.addCanvas(canvas);
-    //player.setBepis(canvas);
 
     try
     {
@@ -272,6 +273,8 @@ int main(int argc, char** argv)
         std::cerr << "Runtime error: " << err.what() << std::endl;
     }
 
+    canvas->Clear();
+    usleep(100);
     canvas->Clear();
     delete canvas;
 
