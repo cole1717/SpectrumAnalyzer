@@ -68,7 +68,7 @@ void SpectrumAnalyzer::play(const std::string &fileName)
 
 void SpectrumAnalyzer::init()
 {
-    bands = 100;
+    bands = 90;
     threshold = -80;
     offset = bands - 32;
     factor = abs(threshold / 32);
@@ -87,7 +87,7 @@ void SpectrumAnalyzer::init()
     spectrum->property("post-messages",true);
     spectrum->property("bands", bands);
     spectrum->property("threshold", threshold);
-    spectrum->property("interval", 50000000);
+    spectrum->property("interval", 30000000);
 
     //Glib::ustring name = "snd_usb_audio";
 
@@ -153,11 +153,10 @@ void SpectrumAnalyzer::decode_spectrum(const RefPtr<Message> &message)
         magnitude = floor (abs(threshold) + mag.get());
 
         if (magnitude < 20) fakeFactor = factor * 0.7;
-        else if (magnitude >= 15 && magnitude < 35) fakeFactor = factor;
+        else if (magnitude >= 20 && magnitude < 35) fakeFactor = factor;
         else fakeFactor = factor * 1.2;
 
         height = floor(magnitude / fakeFactor);
-        drawMag(height, 32 + offset - i);
         drawMag(height, 32 + offset - i);
     }
 }
@@ -168,7 +167,7 @@ void SpectrumAnalyzer::drawMag(float height, int x)
     for (int i = 0; i < h; i++)
     {
         if (i < 10)
-            canvas->SetPixel(x, i, 0, 200, 0);
+            canvas->SetPixel(x, i, 0, 210, 0);  // keep green amp constant, yellow & red as ratio of !green line segment (30%, 70%)
         else if (i >= 10 && i < 20)
             canvas->SetPixel(x, i, 255, 225, 0);
         else
@@ -274,7 +273,7 @@ int main(int argc, char** argv)
     }
 
     canvas->Clear();
-    usleep(100);
+    usleep(5000);
     canvas->Clear();
     delete canvas;
 
