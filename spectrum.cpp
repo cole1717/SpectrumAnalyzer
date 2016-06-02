@@ -30,24 +30,24 @@ class SpectrumAnalyzer
 public:
     SpectrumAnalyzer();
     void addCanvas(Canvas *can);
-    void play(const std::string& fileName);
-    void setBepis(Canvas *canvas);
+    void play(/*const std::string& fileName*/);
+    //void setBepis(Canvas *canvas);
 private:
     void init();
     bool on_bus_message(const RefPtr<Bus>&, const RefPtr<Message>& message);
-    void on_decoder_pad_added(const RefPtr<Pad>& pad);
+    //void on_decoder_pad_added(const RefPtr<Pad>& pad);
     void decode_spectrum(const RefPtr<Message> &message);
+    void decode_spectrum2(const RefPtr<Message> &message);
     void drawMag(float height, int x);
-    void drawStraightLine(Canvas *canvas, int x1, int y1, int x2, int y2, int R, int G, int B);
+    //void drawStraightLine(Canvas *canvas, int x1, int y1, int x2, int y2, int R, int G, int B);
     RefPtr<Glib::MainLoop> main_loop;
     RefPtr<Pipeline> pipeline;
-    RefPtr<FileSrc> filesrc;
-    RefPtr<Element> decoder, audiosink, spectrum;
+    //RefPtr<FileSrc> filesrc;
+    RefPtr<Element> /*decoder*/source, audiosink, spectrum;
     Canvas *canvas;
     int bands;
     float factor;
     int threshold;
-    int offset;
 };
 
 SpectrumAnalyzer::SpectrumAnalyzer()
@@ -57,29 +57,29 @@ SpectrumAnalyzer::SpectrumAnalyzer()
     pipeline->get_bus()->add_watch(sigc::mem_fun(*this, &SpectrumAnalyzer::on_bus_message));
 }
 
-void SpectrumAnalyzer::play(const std::string &fileName)
+void SpectrumAnalyzer::play(/*const std::string &fileName*/)
 {
     init();
-    filesrc->property_location() = fileName;
+    //filesrc->property_location() = fileName;
     pipeline->set_state(STATE_PLAYING);
     main_loop->run();
-    pipeline->set_state(STATE_NULL);
+    //pipeline->set_state(STATE_NULL);
 }
 
 void SpectrumAnalyzer::init()
 {
     bands = 90;
     threshold = -80;
-    offset = bands - 32;
     factor = abs(threshold / 32);
 
 
-    filesrc = FileSrc::create();
-    decoder = ElementFactory::create_element("decodebin");
+    //filesrc = FileSrc::create();
+    //decoder = ElementFactory::create_element("decodebin");
+    source = ElementFactory::create_element("pulsesrc");
     audiosink = ElementFactory::create_element("pulsesink");
     spectrum = ElementFactory::create_element("spectrum");
 
-    if (!filesrc || !decoder || !audiosink || !spectrum)
+    if (/*!filesrc || !decoder*/!source || !audiosink || !spectrum)
     {
         throw std::runtime_error("One element couldn't be created.");
     }
@@ -87,16 +87,13 @@ void SpectrumAnalyzer::init()
     spectrum->property("post-messages",true);
     spectrum->property("bands", bands);
     spectrum->property("threshold", threshold);
-    spectrum->property("interval", 30000000);
+    spectrum->property("interval", 20000000);
 
-    //Glib::ustring name = "snd_usb_audio";
+    pipeline->/*add(filesrc)->add(decoder)*/add(source)->add(spectrum)->add(audiosink);
+    //decoder->signal_pad_added().connect(sigc::mem_fun(*this, &SpectrumAnalyzer::on_decoder_pad_added));
 
-    //audiosink->property("device", name);
-
-    pipeline->add(filesrc)->add(decoder)->add(audiosink)->add(spectrum);
-    decoder->signal_pad_added().connect(sigc::mem_fun(*this, &SpectrumAnalyzer::on_decoder_pad_added));
-
-    filesrc->link(decoder);
+    //filesrc->link(decoder);
+    source->link(spectrum);
     spectrum->link(audiosink);
 }
 
@@ -122,7 +119,7 @@ bool SpectrumAnalyzer::on_bus_message(const RefPtr<Bus> &, const RefPtr<Message>
     return true;
 }
 
-void SpectrumAnalyzer::on_decoder_pad_added(const RefPtr<Pad>& pad)
+/*void SpectrumAnalyzer::on_decoder_pad_added(const RefPtr<Pad>& pad)
 {
     try
     {
@@ -133,7 +130,7 @@ void SpectrumAnalyzer::on_decoder_pad_added(const RefPtr<Pad>& pad)
     {
         std::cerr << "Cannot link to decoder. Error: " << err.what() << std::endl;
     }
-}
+}*/
 
 void SpectrumAnalyzer::decode_spectrum(const RefPtr<Message> &message)
 {
@@ -146,10 +143,10 @@ void SpectrumAnalyzer::decode_spectrum(const RefPtr<Message> &message)
 
     canvas->Clear();
 
-    for (int i = bands; i > offset; i--)
+    for (int i = 0; i < 32; i++)
     {
         Glib::Value<float> mag;
-        mags.get(i - offset - 1, mag);
+        mags.get(i, mag);
         magnitude = floor (abs(threshold) + mag.get());
 
         if (magnitude < 20) fakeFactor = factor * 0.7;
@@ -157,8 +154,37 @@ void SpectrumAnalyzer::decode_spectrum(const RefPtr<Message> &message)
         else fakeFactor = factor * 1.2;
 
         height = floor(magnitude / fakeFactor);
-        drawMag(height, 32 + offset - i);
+        drawMag(height, 31 - i);
     }
+    //std::cout << s.to_string() << std::endl;
+}
+
+void SpectrumAnalyzer::decode_spectrum2(const RefPtr<Message> &message)
+{
+    Gst::Structure s = message->get_structure();
+    float height;
+    float magnitude;
+    float fakeFactor;
+    Gst::ValueList mags;
+    s.get_field("magnitude", mags);
+
+    canvas->Clear();
+
+    for (int i = 0; i < 16; i++)
+    {
+        Glib::Value<float> mag;
+        mags.get(i, mag);
+        magnitude = floor (abs(threshold) + mag.get());
+
+        if (magnitude < 20) fakeFactor = factor * 0.7;
+        else if (magnitude >= 20 && magnitude < 40) fakeFactor = factor;
+        else fakeFactor = factor * 1.2;
+
+        height = floor(magnitude / fakeFactor);
+        drawMag(height, 31 - 2 * i);
+        drawMag(height, 30 - 2 * i);
+    }
+    //std::cout << s.to_string() << std::endl;
 }
 
 void SpectrumAnalyzer::drawMag(float height, int x)
@@ -167,7 +193,7 @@ void SpectrumAnalyzer::drawMag(float height, int x)
     for (int i = 0; i < h; i++)
     {
         if (i < 10)
-            canvas->SetPixel(x, i, 0, 210, 0);  // keep green amp constant, yellow & red as ratio of !green line segment (30%, 70%)
+            canvas->SetPixel(x, i, 0, 210, 0);  // idea: keep green amp constant, yellow & red as ratio of !green line segment (30%, 70%)
         else if (i >= 10 && i < 20)
             canvas->SetPixel(x, i, 255, 225, 0);
         else
@@ -180,7 +206,7 @@ void SpectrumAnalyzer::addCanvas(Canvas *can)
     canvas = can;
 }
 
-void SpectrumAnalyzer::drawStraightLine(Canvas *canvas, int x1, int y1, int x2, int y2, int R, int G, int B) {
+/*void SpectrumAnalyzer::drawStraightLine(Canvas *canvas, int x1, int y1, int x2, int y2, int R, int G, int B) {
     //correct coordinates
     y1 = 31 - y1;
     y2 = 31 - y2;
@@ -234,16 +260,16 @@ void SpectrumAnalyzer::setBepis(Canvas *canvas) {
     drawStraightLine(canvas,25,23,29,23,255,0,0);
     drawStraightLine(canvas,25,18,25,23,255,0,0);
     drawStraightLine(canvas,29,13,29,18,255,0,0);
-}
+}*/
 
 
 int main(int argc, char** argv)
 {
-    if (argc < 2)
+    /*if (argc < 2)
     {
       std::cout << "Usage: " << argv[0] << " <audio filename>" << std::endl;
       return 1;
-    }
+    }*/
 
     uid_t real = getuid();
 
@@ -265,7 +291,7 @@ int main(int argc, char** argv)
 
     try
     {
-        player.play(argv[1]);
+        player.play(/*argv[1]*/);
     }
     catch (const std::runtime_error& err)
     {
