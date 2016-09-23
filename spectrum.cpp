@@ -14,7 +14,6 @@
 #include <iomanip>
 #include <unistd.h>
 
-//NEED THESE?
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -159,7 +158,7 @@ void SpectrumAnalyzer::decode_spectrum(const RefPtr<Message> &message)
     //std::cout << s.to_string() << std::endl;
 }
 
-void SpectrumAnalyzer::decode_spectrum2(const RefPtr<Message> &message)
+void SpectrumAnalyzer::decode_spectrum2(const RefPtr<Message> &message)  // HAVE TO SET BANDS = BANDS / 2 !!!!!!
 {
     Gst::Structure s = message->get_structure();
     float height;
@@ -193,7 +192,7 @@ void SpectrumAnalyzer::drawMag(float height, int x)
     for (int i = 0; i < h; i++)
     {
         if (i < 10)
-            canvas->SetPixel(x, i, 0, 210, 0);  // idea: keep green amp constant, yellow & red as ratio of !green line segment (30%, 70%)
+            canvas->SetPixel(x, i, 0, 210, 0);
         else if (i >= 10 && i < 20)
             canvas->SetPixel(x, i, 255, 225, 0);
         else
