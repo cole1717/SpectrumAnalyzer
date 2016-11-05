@@ -10,3 +10,6 @@ g++ spectrum.cpp -o spectrum -std=c++11 -L/home/pi/git/rpi-rgb-led-matrix-master
 sudo chown root spectrum
 
 sudo chmod u+s spectrum
+
+
+Video demo: https://drive.google.com/open?id=0B0yjZfQZ-Uw3Wl9jUi1xOV9YbEk
