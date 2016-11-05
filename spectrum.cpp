@@ -49,6 +49,7 @@ private:
     int threshold;
 };
 
+//constructor. adds a bus listener
 SpectrumAnalyzer::SpectrumAnalyzer()
 {
     main_loop = Glib::MainLoop::create();
@@ -56,6 +57,7 @@ SpectrumAnalyzer::SpectrumAnalyzer()
     pipeline->get_bus()->add_watch(sigc::mem_fun(*this, &SpectrumAnalyzer::on_bus_message));
 }
 
+//starts & runs the pipeline
 void SpectrumAnalyzer::play(/*const std::string &fileName*/)
 {
     init();
@@ -65,6 +67,7 @@ void SpectrumAnalyzer::play(/*const std::string &fileName*/)
     //pipeline->set_state(STATE_NULL);
 }
 
+// initializes the pipeline with band / threshold / interval values optimized for the pi
 void SpectrumAnalyzer::init()
 {
     bands = 90;
@@ -96,6 +99,7 @@ void SpectrumAnalyzer::init()
     spectrum->link(audiosink);
 }
 
+//if fft message is received, decode the message and display the data
 bool SpectrumAnalyzer::on_bus_message(const RefPtr<Bus> &, const RefPtr<Message> &message)
 {
     switch(message->get_message_type())
@@ -131,6 +135,7 @@ bool SpectrumAnalyzer::on_bus_message(const RefPtr<Bus> &, const RefPtr<Message>
     }
 }*/
 
+//extract the fft data and scale it to the display
 void SpectrumAnalyzer::decode_spectrum(const RefPtr<Message> &message)
 {
     Gst::Structure s = message->get_structure();
@@ -158,7 +163,7 @@ void SpectrumAnalyzer::decode_spectrum(const RefPtr<Message> &message)
     //std::cout << s.to_string() << std::endl;
 }
 
-void SpectrumAnalyzer::decode_spectrum2(const RefPtr<Message> &message)  // HAVE TO SET BANDS = BANDS / 2 !!!!!!
+/* void SpectrumAnalyzer::decode_spectrum2(const RefPtr<Message> &message)  // HAVE TO SET BANDS = BANDS / 2 !!!!!!
 {
     Gst::Structure s = message->get_structure();
     float height;
@@ -184,8 +189,9 @@ void SpectrumAnalyzer::decode_spectrum2(const RefPtr<Message> &message)  // HAVE
         drawMag(height, 30 - 2 * i);
     }
     //std::cout << s.to_string() << std::endl;
-}
+}*/
 
+//draw a straight line up to a value
 void SpectrumAnalyzer::drawMag(float height, int x)
 {
     int h = int(height);
@@ -200,6 +206,7 @@ void SpectrumAnalyzer::drawMag(float height, int x)
     }
 }
 
+//add canvas object to class
 void SpectrumAnalyzer::addCanvas(Canvas *can)
 {
     canvas = can;
@@ -270,6 +277,7 @@ int main(int argc, char** argv)
       return 1;
     }*/
 
+	//Use root privileges to initialize gpio & LED matrix
     uid_t real = getuid();
 
     GPIO io;
@@ -282,6 +290,7 @@ int main(int argc, char** argv)
     RGBMatrix *canvas = new RGBMatrix(&io, rows, chain, parallel);
     canvas->SetBrightness(60);
 
+	//drop root privileges
     seteuid(real);
 
     init(argc, argv);
